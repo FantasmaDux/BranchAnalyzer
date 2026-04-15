@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Эффективность+</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+</head>
+<body>
+<div class="container">
+    <h1>Эффективность+</h1>
+
+    <!-- Панель управления -->
+    <div class="control-panel">
+        <div class="control-group">
+            <button id="importBtn" class="btn-primary">Импорт данных (XLSX/CSV)</button>
+            <input type="file" id="fileInput" accept=".xlsx,.csv" style="display: none;">
+            <span id="fileName" class="file-name"></span>
+        </div>
+
+        <div class="control-group">
+            <label>Тип компании:</label>
+            <select id="companyType">
+                <option value="MARKETING">Торговля</option>
+                <option value="PRODUCTION">Производство</option>
+                <option value="TECHNICAL_SUPPORT">Техническая поддержка</option>
+            </select>
+        </div>
+
+        <div class="control-group" id="metricsGroup">
+            <label>Метрика:</label>
+            <div id="metricsRadios"></div>
+        </div>
+
+        <div class="control-group">
+            <button id="analyzeBtn" class="btn-primary" disabled>🔍 Провести анализ</button>
+        </div>
+    </div>
+
+    <!-- Загрузка данных -->
+    <div id="dataPreview" class="data-preview" style="display: none;">
+        <h3>Предпросмотр данных</h3>
+        <div id="previewTable"></div>
+    </div>
+
+    <!-- Результаты анализа -->
+    <div id="results" style="display: none;">
+        <!-- Таблица исходных данных -->
+        <div class="results-section">
+            <h3>Исходные данные</h3>
+            <div id="rawDataTable"></div>
+        </div>
+
+        <!-- Статистика по филиалам -->
+        <div class="results-section">
+            <h3>Статистика по филиалам</h3>
+            <div id="branchStatisticsTable"></div>
+        </div>
+
+        <!-- Таблица гомогенности дисперсий -->
+        <div class="results-section">
+            <h3>Проверка гомогенности дисперсий (тест Ливена)</h3>
+            <div id="leveneTable"></div>
+        </div>
+
+        <!-- Таблица ANOVA -->
+        <div class="results-section">
+            <h3>ANOVA</h3>
+            <div id="anovaTable"></div>
+        </div>
+
+        <!-- Таблица Post-hoc тестов -->
+        <div class="results-section">
+            <h3>Post-hoc тесты (Tukey HSD)</h3>
+            <div id="posthocTable"></div>
+        </div>
+
+        <!-- Таблица рангов -->
+        <div class="results-section">
+            <h3>Ранжирование филиалов</h3>
+            <div id="rankingTable"></div>
+        </div>
+
+        <!-- Графики -->
+        <div class="results-section">
+            <h3> Box plot</h3>
+            <canvas id="boxplotChart" width="800" height="400"></canvas>
+        </div>
+
+        <div class="results-section">
+            <h3>Средние с доверительными интервалами</h3>
+            <canvas id="barChart" width="800" height="400"></canvas>
+        </div>
+
+        <div class="results-section">
+            <h3>Dot plot</h3>
+            <canvas id="dotplotChart" width="800" height="400"></canvas>
+        </div>
+
+        <!-- Кнопка экспорта -->
+        <div class="export-section">
+            <button id="exportBtn" class="btn-success">Экспорт в PDF</button>
+        </div>
+    </div>
+</div>
+
+<script src="script.js"></script>
+</body>
+</html>
