@@ -377,98 +377,251 @@ function displayRanking(ranking) {
 }
 
 function drawBoxplot(boxPlotData) {
-    const ctx = document.getElementById('boxplotChart').getContext('2d');
-    if (charts.boxplot) charts.boxplot.destroy();
+    const canvas = document.getElementById('boxplotChart');
+    const ctx = canvas.getContext('2d');
 
-    if (!boxPlotData) {
+    // Уничтожаем старый график, если есть
+    if (charts.boxplot) {
+        charts.boxplot.destroy();
+        charts.boxplot = null;
+    }
+
+    if (!boxPlotData || Object.keys(boxPlotData).length === 0) {
         console.warn('No boxplot data');
         return;
     }
 
     const branches = Object.keys(boxPlotData);
+    const values = [];
 
-    // Создаем данные для bar chart с ошибками
-    const means = [];
-    const errors = [];
-
-    branches.forEach(branch => {
+    // Собираем все значения для определения диапазона Y
+    for (const branch of branches) {
         const data = boxPlotData[branch];
-        // Используем медиану как среднее для отображения
-        means.push(data.median);
-        errors.push((data.q3 - data.q1) / 2); // полуразмах между квартилями
+        values.push(data.min, data.max, data.q1, data.q3, data.median);
+        if (data.outliers) values.push(...data.outliers);
+    }
+
+    const minY = Math.min(...values) - 5;
+    const maxY = Math.max(...values) + 5;
+
+    // Очищаем canvas
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // Настройки отрисовки
+    const width = canvas.width;
+    const height = canvas.height;
+    const leftMargin = 80;
+    const rightMargin = 40;
+    const topMargin = 40;
+    const bottomMargin = 60;
+    const chartWidth = width - leftMargin - rightMargin;
+    const chartHeight = height - topMargin - bottomMargin;
+
+    // Функции для преобразования координат
+    const getX = (index) => {
+        const step = chartWidth / (branches.length - 1 || 1);
+        return leftMargin + index * step;
+    };
+
+    const getY = (value) => {
+        return topMargin + chartHeight - ((value - minY) / (maxY - minY)) * chartHeight;
+    };
+
+    // Рисуем оси
+    ctx.save();
+    ctx.strokeStyle = '#ccc';
+    ctx.fillStyle = '#333';
+    ctx.font = '12px Arial';
+
+    // Ось Y
+    ctx.beginPath();
+    ctx.moveTo(leftMargin, topMargin);
+    ctx.lineTo(leftMargin, topMargin + chartHeight);
+    ctx.lineTo(width - rightMargin, topMargin + chartHeight);
+    ctx.stroke();
+
+    // Подписи оси Y
+    const ySteps = 5;
+    for (let i = 0; i <= ySteps; i++) {
+        const value = minY + (maxY - minY) * (i / ySteps);
+        const y = getY(value);
+        ctx.fillText(value.toFixed(1), leftMargin - 35, y + 4);
+        ctx.beginPath();
+        ctx.moveTo(leftMargin - 5, y);
+        ctx.lineTo(leftMargin, y);
+        ctx.stroke();
+    }
+
+    // Подписи оси X
+    branches.forEach((branch, idx) => {
+        const x = getX(idx);
+        ctx.fillText(branch, x - 20, topMargin + chartHeight + 20);
     });
 
-    charts.boxplot = new Chart(ctx, {
-        type: 'bar',
-        data: {
-            labels: branches,
-            datasets: [{
-                label: 'Медиана (с квартильным размахом)',
-                data: means,
-                backgroundColor: 'rgba(54, 162, 235, 0.5)',
-                borderColor: 'rgba(54, 162, 235, 1)',
-                borderWidth: 1
-            }]
-        },
-        options: {
-            responsive: true,
-            plugins: {
-                tooltip: {
-                    callbacks: {
-                        label: (context) => {
-                            const idx = context.dataIndex;
-                            const data = boxPlotData[branches[idx]];
-                            return [
-                                `Медиана: ${data.median.toFixed(2)}`,
-                                `Q1: ${data.q1.toFixed(2)}`,
-                                `Q3: ${data.q3.toFixed(2)}`,
-                                `Min: ${data.min.toFixed(2)}`,
-                                `Max: ${data.max.toFixed(2)}`
-                            ];
-                        }
-                    }
-                }
-            },
-            scales: {
-                y: {
-                    title: { display: true, text: 'Значение показателя' }
-                }
-            }
+    // Рисуем box plot для каждого филиала
+    const boxWidth = 40;
+
+    branches.forEach((branch, idx) => {
+        const data = boxPlotData[branch];
+        const x = getX(idx);
+        const boxLeft = x - boxWidth / 2;
+        const boxTop = getY(data.q3);
+        const boxBottom = getY(data.q1);
+        const medianY = getY(data.median);
+        const minYpos = getY(data.min);
+        const maxYpos = getY(data.max);
+
+        // Ящик (Q1 - Q3)
+        ctx.fillStyle = 'rgba(54, 162, 235, 0.5)';
+        ctx.fillRect(boxLeft, boxTop, boxWidth, boxBottom - boxTop);
+        ctx.strokeStyle = '#333';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(boxLeft, boxTop, boxWidth, boxBottom - boxTop);
+
+        // Медиана
+        ctx.beginPath();
+        ctx.moveTo(boxLeft, medianY);
+        ctx.lineTo(boxLeft + boxWidth, medianY);
+        ctx.lineWidth = 2;
+        ctx.stroke();
+
+        // Усы
+        ctx.beginPath();
+        ctx.moveTo(x, minYpos);
+        ctx.lineTo(x, maxYpos);
+        ctx.lineWidth = 1;
+        ctx.stroke();
+
+        // Горизонтальные линии на усах
+        ctx.beginPath();
+        ctx.moveTo(x - 10, minYpos);
+        ctx.lineTo(x + 10, minYpos);
+        ctx.moveTo(x - 10, maxYpos);
+        ctx.lineTo(x + 10, maxYpos);
+        ctx.stroke();
+
+        // Выбросы (если есть)
+        if (data.outliers && data.outliers.length > 0) {
+            ctx.fillStyle = 'red';
+            data.outliers.forEach(outlier => {
+                const outlierY = getY(outlier);
+                ctx.beginPath();
+                ctx.arc(x, outlierY, 4, 0, 2 * Math.PI);
+                ctx.fill();
+            });
         }
     });
+
+    // Заголовок
+    ctx.fillStyle = '#333';
+    ctx.font = 'bold 14px Arial';
+    ctx.fillText('Box plot (распределение показателя по филиалам)', width / 2 - 150, 25);
+
+    ctx.restore();
 }
 
 function drawBarChart(means, confidenceIntervals) {
-    const ctx = document.getElementById('barChart').getContext('2d');
-    if (charts.bar) charts.bar.destroy();
+    const canvas = document.getElementById('barChart');
+    if (!canvas) return;
 
-    if (!means) return;
+    const ctx = canvas.getContext('2d');
+
+    if (!means || Object.keys(means).length === 0) return;
 
     const branches = Object.keys(means);
-    const meansArray = branches.map(b => means[b]);
-    const errors = branches.map(b => confidenceIntervals ? confidenceIntervals[b] : 0);
 
-    charts.bar = new Chart(ctx, {
-        type: 'bar',
-        data: {
-            labels: branches,
-            datasets: [{
-                label: 'Среднее значение',
-                data: meansArray,
-                backgroundColor: 'rgba(52, 152, 219, 0.6)'
-            }]
-        },
-        options: {
-            responsive: true,
-            plugins: {
-                tooltip: {
-                    callbacks: {
-                        label: (ctx) => `${ctx.raw.toFixed(2)} ± ${errors[ctx.dataIndex]?.toFixed(2) || '0'}`
-                    }
-                }
-            }
-        }
+// ✅ Учитываем доверительные интервалы
+    const allUpper = branches.map(b => means[b] + (confidenceIntervals?.[b] || 0));
+    const allLower = branches.map(b => means[b] - (confidenceIntervals?.[b] || 0));
+
+    const maxVal = Math.max(...allUpper) + 5;
+    const minVal = Math.min(...allLower) - 5;
+
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    const width = canvas.width;
+    const height = canvas.height;
+    const left = 80, right = 40, top = 40, bottom = 60;
+    const chartW = width - left - right;
+    const chartH = height - top - bottom;
+
+    const getY = (v) => top + chartH - ((v - minVal) / (maxVal - minVal)) * chartH;
+
+// Оси
+    ctx.beginPath();
+    ctx.moveTo(left, top);
+    ctx.lineTo(left, top + chartH);
+    ctx.lineTo(width - right, top + chartH);
+    ctx.stroke();
+
+// Подписи Y
+    for (let i = 0; i <= 5; i++) {
+        const val = minVal + (maxVal - minVal) * i / 5;
+        const y = getY(val);
+        ctx.fillText(val.toFixed(1), left - 40, y + 4);
+
+        ctx.beginPath();
+        ctx.moveTo(left - 5, y);
+        ctx.lineTo(left, y);
+        ctx.stroke();
+    }
+
+    const barWidth = Math.min(60, chartW / branches.length * 0.6);
+    const spacing = branches.length > 1
+        ? (chartW - barWidth * branches.length) / (branches.length - 1)
+        : 0;
+
+    branches.forEach((branch, idx) => {
+        const mean = means[branch];
+        const ci = confidenceIntervals?.[branch] || 0;
+
+        const x = left + idx * (barWidth + spacing);
+
+        const barTop = getY(mean);
+        const barBottom = getY(minVal); // ✅ фикс вместо getY(0)
+
+        // Столбик
+        ctx.fillStyle = 'rgba(52, 152, 219, 0.7)';
+        ctx.fillRect(x, barTop, barWidth, barBottom - barTop);
+        ctx.strokeRect(x, barTop, barWidth, barBottom - barTop);
+
+        // CI
+        const upperY = getY(mean + ci);
+        const lowerY = getY(mean - ci);
+
+        ctx.strokeStyle = '#e74c3c';
+        ctx.lineWidth = 2;
+
+        ctx.beginPath();
+        ctx.moveTo(x + barWidth / 2, upperY);
+        ctx.lineTo(x + barWidth / 2, lowerY);
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.moveTo(x + barWidth / 2 - 6, upperY);
+        ctx.lineTo(x + barWidth / 2 + 6, upperY);
+        ctx.moveTo(x + barWidth / 2 - 6, lowerY);
+        ctx.lineTo(x + barWidth / 2 + 6, lowerY);
+        ctx.stroke();
+
+        // Подписи
+        ctx.fillStyle = '#333';
+        ctx.font = '12px Arial';
+        ctx.fillText(branch, x + barWidth / 2 - 20, top + chartH + 20);
+
+        ctx.font = 'bold 12px Arial';
+        ctx.fillText(mean.toFixed(1), x + barWidth / 2 - 12, barTop - 8);
     });
+
+// Заголовок
+    ctx.font = 'bold 14px Arial';
+    ctx.fillStyle = '#333';
+    ctx.fillText(
+        'Средние значения с доверительными интервалами (95%)',
+        width / 2 - 180,
+        25
+    );
+
 }
 
 function drawDotplot(allValues) {
@@ -478,22 +631,27 @@ function drawDotplot(allValues) {
     if (!allValues) return;
 
     const branches = Object.keys(allValues);
+
     const datasets = branches.map((branch, idx) => ({
         label: branch,
-        data: allValues[branch].map((val, i) => ({ x: idx + 1 + (Math.random() - 0.5) * 0.3, y: val })),
+        data: allValues[branch].map(val => ({
+            x: branch, // ✅ теперь категория, а не число
+            y: val
+        })),
         backgroundColor: `hsl(${idx * 360 / branches.length}, 70%, 50%)`,
-        pointRadius: 5,
-        type: 'scatter'
+        pointRadius: 5
     }));
 
     charts.dotplot = new Chart(ctx, {
+        type: 'scatter',
         data: { datasets },
         options: {
             responsive: true,
             scales: {
                 x: {
-                    title: { display: true, text: 'Филиалы' },
-                    ticks: { callback: (val) => branches[Math.round(val) - 1] }
+                    type: 'category', // ✅ ключевой фикс
+                    labels: branches,
+                    title: { display: true, text: 'Филиалы' }
                 }
             },
             plugins: {
@@ -505,6 +663,7 @@ function drawDotplot(allValues) {
             }
         }
     });
+
 }
 
 async function exportToPDF() {
